@@ -21,6 +21,9 @@ class Pipeline {
   /// Nombre de pages en cours de traduction (affiché dans la barre du haut).
   final ValueNotifier<int> busy = ValueNotifier(0);
 
+  /// Appelé dès qu'une page est traduite (la page de lecture l'envoie au site).
+  void Function(String url, Map<String, dynamic> result)? onResult;
+
   static const _maxParallel = 2;
   int _running = 0;
   final List<Completer<void>> _waiting = [];
@@ -117,6 +120,9 @@ class Pipeline {
       'bubbles': page.bubbles.map((b) => b.toJson()).toList(),
     };
     _cache[url] = result;
+    try {
+      onResult?.call(url, result);
+    } catch (_) {}
     return result;
   }
 }

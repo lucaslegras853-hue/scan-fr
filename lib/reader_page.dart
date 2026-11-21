@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -39,6 +40,17 @@ class _ReaderPageState extends State<ReaderPage> {
     });
     _prepareTranslator();
     _refreshFav();
+    widget.pipeline.onResult = (url, result) {
+      _c?.evaluateJavascript(
+          source: 'window.__sft && window.__sft.deliver && '
+              'window.__sft.deliver(${jsonEncode(url)}, ${jsonEncode(result)});');
+    };
+  }
+
+  @override
+  void dispose() {
+    widget.pipeline.onResult = null;
+    super.dispose();
   }
 
   Future<void> _prepareTranslator() async {

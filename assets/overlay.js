@@ -127,9 +127,24 @@
     if (kind === 'ok') b._t = setTimeout(function () { b.classList.add('sft-hide'); }, 2500);
   }
 
+  function handle(img, u, res, how) {
+    if (img.dataset.sft !== u) return;      // l'image a changé entre temps
+    if (img.dataset.sftState === 'done' && !(res && res.bubbles && res.bubbles.length)) return;
+    if (!res) { img.dataset.sftState = 'err'; return badge(img, 'Pas de réponse de l\'appli (toucher pour réessayer)', 'err'); }
+    if (res.blocked) { img.dataset.sftState = 'err'; return badge(img, 'Image bloquée par le site (toucher pour réessayer)', 'err'); }
+    if (res.error) { img.dataset.sftState = 'err'; return badge(img, 'Erreur : ' + String(res.error).slice(0, 120), 'err'); }
+    if (res.needBytes) return;               // la suite arrive par une autre réponse
+    img.dataset.sftState = 'done';
+    if (!res.bubbles || !res.bubbles.length) return badge(img, 'Aucun texte trouvé', 'ok');
+    render(img, res);
+    badge(img, '✓ ' + res.bubbles.length + ' bulle' + (res.bubbles.length > 1 ? 's' : '') + (how ? ' (' + how + ')' : ''), 'ok');
+  }
+
   function process(img, u) {
     img.dataset.sft = u;
-    badge(img, 'Traduction…', 'wait');
+    img.dataset.sftState = 'wait';
+    img._sftT = Date.now();
+    if (!layers.has(img)) badge(img, 'Traduction…', 'wait');
     var h = window.flutter_inappwebview;
     var how = 'appli';
     h.callHandler('sftImage', { url: u, referer: location.href, ua: navigator.userAgent })
@@ -142,17 +157,24 @@
             return b64 ? h.callHandler('sftBytes', { url: u, data: b64 }) : { blocked: true };
           });
       })
-      .then(function (res) {
-        if (img.dataset.sft !== u) return;      // l'image a changé entre temps
-        if (!res) return badge(img, 'Pas de réponse de l\'appli (toucher pour réessayer)', 'err');
-        if (res.blocked) return badge(img, 'Image bloquée par le site (toucher pour réessayer)', 'err');
-        if (res.error) return badge(img, 'Erreur : ' + String(res.error).slice(0, 120), 'err');
-        if (!res.bubbles || !res.bubbles.length) return badge(img, 'Aucun texte trouvé', 'ok');
-        render(img, res);
-        badge(img, '✓ ' + res.bubbles.length + ' bulle' + (res.bubbles.length > 1 ? 's' : '') + ' (' + how + ')', 'ok');
-      })
-      .catch(function (e) { badge(img, 'Erreur JS : ' + (e && e.message || e), 'err'); });
+      .then(function (res) { handle(img, u, res, how); })
+      .catch(function (e) {
+        if (img.dataset.sftState === 'wait') badge(img, 'Erreur JS : ' + (e && e.message || e), 'err');
+      });
   }
+
+  // L'appli envoie aussi chaque résultat directement ici dès qu'il est prêt,
+  // au cas où la réponse normale se perde en route.
+  window.__sft.deliver = function (u, res) {
+    var imgs = document.images;
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      if (img.dataset.sft === u || (!img.dataset.sft && abs(realUrl(img)) === u)) {
+        img.dataset.sft = u;
+        handle(img, u, res, '');
+      }
+    }
+  };
 
   function fit(box) {
     var fs = Math.max(7, Math.min(24, box.clientHeight * 0.42));
@@ -228,7 +250,12 @@
       var u = abs(realUrl(img));
       if (!u) continue;
       if (img.dataset.sft) {
-        if (img.dataset.sft === u) continue;
+        if (img.dataset.sft === u) {
+          // Toujours en attente au bout de 8 s : on redemande (sans risque,
+          // l'appli ne refait pas le travail déjà en cours ou déjà fait).
+          if (img.dataset.sftState === 'wait' && Date.now() - (img._sftT || 0) > 8000) process(img, u);
+          continue;
+        }
         // Même balise, nouvelle image (lecteurs page par page)
         if (!(img.complete && img.naturalWidth >= MIN)) continue;
         clearImg(img);
