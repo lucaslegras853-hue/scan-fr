@@ -32,7 +32,11 @@ jobs:
           sed -i 's#android:label="scan_fr"#android:label="Scan FR"#' $M
 
       - name: Modules
-        run: flutter pub get || flutter pub upgrade --major-versions
+        run: |
+          rm -rf test
+          flutter pub get || flutter pub upgrade --major-versions
+          # Compatibilité des modules avec le nouvel outil de build Android
+          find ~/.pub-cache/hosted/pub.dev -path '*/android/build.gradle*' -exec sed -i "s/proguard-android.txt/proguard-android-optimize.txt/g" {} +
 
       - name: Construction
         run: |
