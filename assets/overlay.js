@@ -16,7 +16,13 @@
     'font-family:"Comic Neue","Comic Sans MS","Segoe Print",sans-serif;font-weight:700;line-height:1.08;' +
     'overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;box-shadow:0 0 0 1px rgba(0,0,0,.08)}' +
     '.sft-b.sft-en{background:#fff4c2}' +
-    'html.sft-off .sft-layer{display:none!important}' +
+    'html.sft-off .sft-layer,html.sft-off #sft-pill{display:none!important}' +
+    '.sft-badge{position:absolute;left:6px;top:6px;max-width:80%;pointer-events:auto;font:600 12px/1.3 sans-serif;' +
+    'padding:4px 8px;border-radius:10px;background:rgba(20,20,20,.82);color:#fff;transition:opacity .6s}' +
+    '.sft-badge.sft-ok{background:rgba(20,110,60,.88)}.sft-badge.sft-err{background:rgba(180,30,30,.92)}' +
+    '.sft-badge.sft-hide{opacity:0;pointer-events:none}' +
+    '#sft-pill{position:fixed;left:10px;bottom:10px;z-index:2147483001;pointer-events:none;font:600 12px/1 sans-serif;' +
+    'padding:6px 10px;border-radius:12px;background:rgba(20,20,20,.75);color:#fff}' +
     // Emplacements de pub classiques
     'ins.adsbygoogle,[id^="div-gpt-ad"],[id^="google_ads"],iframe[src*="ads."],iframe[src*="/ads/"],' +
     'iframe[id^="aswift"],[class*="adsbox"],[id*="popunder"],[class*="popunder"]{display:none!important}';
@@ -65,6 +71,24 @@
       .catch(function () { return null; });
   }
 
+  function canvasB64(u) {
+    // Dernier recours : l'image se charge avec CORS et on la redessine.
+    return new Promise(function (res) {
+      var im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload = function () {
+        try {
+          var c = document.createElement('canvas');
+          c.width = im.naturalWidth; c.height = im.naturalHeight;
+          c.getContext('2d').drawImage(im, 0, 0);
+          res(c.toDataURL('image/jpeg', 0.92).split(',')[1] || null);
+        } catch (e) { res(null); }
+      };
+      im.onerror = function () { res(null); };
+      im.src = u + (u.indexOf('?') < 0 ? '?' : '&') + 'sftcors=1';
+    });
+  }
+
   function clearImg(img) {
     var l = layers.get(img);
     if (l) l.remove();
@@ -72,23 +96,62 @@
     delete img.dataset.sft;
   }
 
+  function layerFor(img) {
+    var layer = layers.get(img);
+    if (layer && layer.isConnected) return layer;
+    layer = document.createElement('div');
+    layer.className = 'sft-layer';
+    var anchor = img.parentElement && img.parentElement.tagName === 'PICTURE' ? img.parentElement : img;
+    anchor.insertAdjacentElement('afterend', layer);
+    layers.set(img, layer);
+    place(img, layer, true);
+    return layer;
+  }
+
+  // Petite étiquette en haut à gauche de chaque planche : où en est la traduction.
+  function badge(img, text, kind) {
+    var layer = layerFor(img);
+    var b = layer.querySelector('.sft-badge');
+    if (!b) {
+      b = document.createElement('div');
+      b.className = 'sft-badge';
+      b.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (b.classList.contains('sft-err')) clearImg(img); // toucher = réessayer
+      });
+      layer.appendChild(b);
+    }
+    b.className = 'sft-badge' + (kind ? ' sft-' + kind : '');
+    b.textContent = text;
+    clearTimeout(b._t);
+    if (kind === 'ok') b._t = setTimeout(function () { b.classList.add('sft-hide'); }, 2500);
+  }
+
   function process(img, u) {
     img.dataset.sft = u;
+    badge(img, 'Traduction…', 'wait');
     var h = window.flutter_inappwebview;
+    var how = 'appli';
     h.callHandler('sftImage', { url: u, referer: location.href, ua: navigator.userAgent })
       .then(function (res) {
-        if (res && res.needBytes) {
-          return fetchB64(u).then(function (b64) {
-            return b64 ? h.callHandler('sftBytes', { url: u, data: b64 }) : null;
+        if (!(res && res.needBytes)) return res;
+        how = 'page';
+        return fetchB64(u)
+          .then(function (b64) { if (b64) return b64; how = 'canvas'; return canvasB64(u); })
+          .then(function (b64) {
+            return b64 ? h.callHandler('sftBytes', { url: u, data: b64 }) : { blocked: true };
           });
-        }
-        return res;
       })
       .then(function (res) {
         if (img.dataset.sft !== u) return;      // l'image a changé entre temps
-        if (res && res.bubbles && res.bubbles.length) render(img, res);
+        if (!res) return badge(img, 'Pas de réponse de l\'appli (toucher pour réessayer)', 'err');
+        if (res.blocked) return badge(img, 'Image bloquée par le site (toucher pour réessayer)', 'err');
+        if (res.error) return badge(img, 'Erreur : ' + String(res.error).slice(0, 120), 'err');
+        if (!res.bubbles || !res.bubbles.length) return badge(img, 'Aucun texte trouvé', 'ok');
+        render(img, res);
+        badge(img, '✓ ' + res.bubbles.length + ' bulle' + (res.bubbles.length > 1 ? 's' : '') + ' (' + how + ')', 'ok');
       })
-      .catch(function () {});
+      .catch(function (e) { badge(img, 'Erreur JS : ' + (e && e.message || e), 'err'); });
   }
 
   function fit(box) {
@@ -103,10 +166,8 @@
   }
 
   function render(img, res) {
-    var old = layers.get(img);
-    if (old) old.remove();
-    var layer = document.createElement('div');
-    layer.className = 'sft-layer';
+    var layer = layerFor(img);
+    layer.querySelectorAll('.sft-b').forEach(function (n) { n.remove(); });
     res.bubbles.forEach(function (b) {
       var d = document.createElement('div');
       d.className = 'sft-b';
@@ -125,9 +186,6 @@
       });
       layer.appendChild(d);
     });
-    var anchor = img.parentElement && img.parentElement.tagName === 'PICTURE' ? img.parentElement : img;
-    anchor.insertAdjacentElement('afterend', layer);
-    layers.set(img, layer);
     place(img, layer, true);
   }
 
@@ -146,8 +204,20 @@
     layer.querySelectorAll('.sft-b').forEach(fit);
   }
 
+  function pill() {
+    var p = document.getElementById('sft-pill');
+    if (!p) {
+      if (!document.body) return;
+      p = document.createElement('div'); p.id = 'sft-pill'; document.body.appendChild(p);
+    }
+    var n = document.querySelectorAll('img[data-sft]').length;
+    var t = !ready() ? 'FR · connexion à l\'appli…' : 'FR · ' + n + ' planche' + (n > 1 ? 's' : '') + ' repérée' + (n > 1 ? 's' : '');
+    if (p.textContent !== t) p.textContent = t;
+  }
+
   function scan() {
     layers.forEach(function (layer, img) { place(img, layer, false); });
+    pill();
     if (!window.__sft.enabled || !ready()) return;
     var vh = window.innerHeight || 800;
     var imgs = document.images;
