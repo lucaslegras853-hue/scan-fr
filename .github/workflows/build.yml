@@ -35,7 +35,19 @@ jobs:
         run: flutter pub get || flutter pub upgrade --major-versions
 
       - name: Construction
-        run: flutter build apk --release
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings > analyze.log 2>&1 || true
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee build.log
+
+      - name: Envoyer le journal d'erreur (branche logs)
+        if: failure()
+        run: |
+          mkdir /tmp/logs && cp *.log /tmp/logs/ || true
+          git config user.name "build-bot" && git config user.email "bot@users.noreply.github.com"
+          git checkout --orphan logs && git rm -rf --cached . >/dev/null
+          cp /tmp/logs/*.log . && git add -f *.log && git commit -m "Journal run ${{ github.run_number }}"
+          git push -f origin logs
 
       - name: Publier l'APK
         uses: softprops/action-gh-release@v2

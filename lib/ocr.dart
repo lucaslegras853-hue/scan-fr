@@ -38,7 +38,7 @@ class MangaOcr {
     try {
       if (w < 300 || h < 300) return PageScan(w, h, []);
 
-      final tileH = (w * 1.6).round().clamp(600, 4000);
+      final int tileH = (w * 1.6).round().clamp(600, 4000).toInt();
       final overlap = (tileH * 0.2).round();
       final step = tileH - overlap;
       final dir = await getTemporaryDirectory();
@@ -63,11 +63,11 @@ class MangaOcr {
             final text = cleanText(b.lines.map((l) => l.text).toList());
             if (text == null) continue;
             final lineH = b.lines.isEmpty ? r.height : r.height / b.lines.length;
-            final pad = (lineH * 0.35).clamp(3.0, 30.0);
-            final x0 = (r.left - pad).clamp(0.0, w.toDouble());
-            final x1 = (r.right + pad).clamp(0.0, w.toDouble());
-            final y0 = (top + r.top - pad).clamp(0.0, h.toDouble());
-            final y1 = (top + r.bottom + pad).clamp(0.0, h.toDouble());
+            final double pad = (lineH * 0.35).clamp(3.0, 30.0).toDouble();
+            final double x0 = (r.left - pad).clamp(0.0, w.toDouble()).toDouble();
+            final double x1 = (r.right + pad).clamp(0.0, w.toDouble()).toDouble();
+            final double y0 = (top + r.top - pad).clamp(0.0, h.toDouble()).toDouble();
+            final double y1 = (top + r.bottom + pad).clamp(0.0, h.toDouble()).toDouble();
             bubbles.add(Bubble(x0, y0, x1 - x0, y1 - y0, text));
           }
         } finally {
