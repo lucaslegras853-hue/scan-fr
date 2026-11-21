@@ -1,0 +1,45 @@
+name: Construire l'APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Fichiers Android
+        run: |
+          flutter create --org com.lucas --project-name scan_fr --platforms android .
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' $M || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' $M
+          sed -i 's#android:label="scan_fr"#android:label="Scan FR"#' $M
+
+      - name: Modules
+        run: flutter pub get || flutter pub upgrade --major-versions
+
+      - name: Construction
+        run: flutter build apk --release
+
+      - name: Publier l'APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Scan FR v1.0.${{ github.run_number }}
+          files: build/app/outputs/flutter-apk/app-release.apk

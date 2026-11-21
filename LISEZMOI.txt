@@ -1,0 +1,31 @@
+SCAN FR - lecteur de scans traduits en français
+================================================
+
+INSTALLATION (sur le PC, une seule fois)
+1. Dézippe le dossier "scan_fr" dans C:\dev\
+2. Double-clique sur installer.bat
+   (ou lance-le depuis un terminal : cd C:\dev\scan_fr puis installer.bat)
+3. À la fin, une fenêtre s'ouvre sur app-release.apk :
+   envoie-le sur ton téléphone et installe-le.
+   Tu peux aussi brancher le téléphone et lancer : flutter run --release
+
+UTILISATION
+- Tape l'adresse de ton site de scans (ou une recherche), puis lis normalement.
+- Les bulles se remplissent de français au fur et à mesure, en avance sur ta lecture.
+- Bouton "traduction" en haut : active ou coupe le français.
+- Touche une bulle : affiche l'anglais d'origine (re-touche pour revenir).
+- Étoile : ajoute le site en favori (il apparaît sur l'accueil).
+- Retour : page précédente du site.
+- Le petit rond avec un chiffre en haut = pages en cours de traduction.
+
+TRADUCTION
+- Par défaut : traducteur Google intégré au téléphone, hors ligne.
+  Il se télécharge tout seul la première fois (~30 Mo).
+- Meilleure qualité : crée une clé API DeepL gratuite sur deepl.com
+  et colle-la dans l'accueil, bouton réglages en haut à droite.
+
+ANTI-PUB
+- Pop-ups et nouveaux onglets bloqués.
+- Redirections vers d'autres sites bloquées (un message propose
+  "Ouvrir quand même" si c'était un vrai lien).
+- Les serveurs de pub connus sont bloqués.

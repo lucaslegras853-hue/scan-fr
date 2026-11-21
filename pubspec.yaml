@@ -1,0 +1,26 @@
+name: scan_fr
+description: Lecteur de scans avec traduction anglais -> français sur les bulles et anti-pub.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_inappwebview: ^6.1.5
+  google_mlkit_text_recognition: ^0.15.0
+  google_mlkit_translation: ^0.13.0
+  http: ^1.2.2
+  shared_preferences: ^2.3.3
+  path_provider: ^2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/overlay.js
